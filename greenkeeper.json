@@ -1,0 +1,10 @@
+{
+  "groups": {
+    "default": {
+      "packages": [
+        "lib/remove-route/package.json",
+        "package.json"
+      ]
+    }
+  }
+}
