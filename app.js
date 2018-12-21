@@ -10,7 +10,7 @@ const app = express();
 const compression = require('compression');
 const debug = require('debug')('default');
 const path = require('path');
-const logger = require('morgan');
+const morgan = require('morgan')
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -22,6 +22,7 @@ const db = require('./models/db');
 db.on('error', function(err)  {throw err; });
 db.once('open', function() {
   debug(`Successfully connected to Mongo (${process.env.MONGODB_HOST})`);
+
   // ready to start
   app.emit('ready');
 });
@@ -31,7 +32,7 @@ function init() {
   // register middleware
   app.use(helmet());
   app.use(compression());
-  app.use(logger('dev'));
+  app.use(morgan('dev'));
   app.use(cookieParser());
   app.use(express.static(path.join(__dirname, 'public')));
 
@@ -65,12 +66,14 @@ function init() {
   // setup local authentication
   if (authType === 'local') {
     debug('Using local auth strategy');
+
     const local = require('./lib/auth/local');
     app.use('/register', local);
   }
   // setup ldap authentication
   else if (authType === 'ldapauth') {
     debug('Using LDAP auth strategy');
+
     require('./lib/auth/ldap');
   }
 
@@ -100,7 +103,6 @@ function init() {
                   debug(err);
                   return;
                 }
-                debug('New user created: ' + newUser.uid);
               });
           }
         });
@@ -126,18 +128,37 @@ function init() {
   virtual.registerAllRRPairsForAllServices();
   app.use('/api/services', api);
   app.use('/virtual', virtual.router);
+  
+  // initialize recording routers
+  const recorder = require('./routes/recording');
+  const recorderController = require('./controllers/recorderController');
+  app.use('/recording',recorder.recordingRouter);
+  app.use('/api/recording',recorder.apiRouter);
 
   // register new virts on all threads
   if (process.env.MOCKIATO_MODE !== 'single') {
     process.on('message', function(message) {
-      const msg = message.data;
-      debug(msg);
 
-      if (msg.action === 'register') {
-        virtual.registerById(msg.serviceId);
-      }
-      else {
-        virtual.deregisterById(msg.serviceId);
+      const msg = message.data;
+      if(msg.service){
+        const service = msg.service;
+        const action  = msg.action;
+        debug(action);
+
+        virtual.deregisterService(service);
+
+        if (action === 'register') {
+          virtual.registerService(service);
+        }
+      }else if(msg.recorder){
+        const rec = msg.recorder;
+        const action  = msg.action;
+        console.log("msg: " + JSON.stringify(msg));
+        if(action === 'register'){
+          recorderController.registerRecorder(rec);
+        }else if(action === 'deregister'){
+          recorderController.deregisterRecorder(rec);
+        }
       }
     });
   }
@@ -148,6 +169,23 @@ function init() {
 
   const users = require('./routes/users');
   app.use('/api/users', users);
+
+  // handle no match responses
+  app.use(/\/((?!recording).)*/,function(req, res, next) {
+    if (!req.msgContainer) {
+      req.msgContainer = {};
+      req.msgContainer.reqMatched = false;
+      req.msgContainer.reason = `Path ${req.path} could not be found`;
+    }
+
+    return res.status(404).json(req.msgContainer);
+  });
+
+  // handle internal errors
+  app.use(/\/((?!recording).)*/,function(err, req, res) {
+    debug(err.message);
+    return res.status(500).send(err.message);
+  });
 
   // ready for testing (see test/test.js)
   app.emit('started');

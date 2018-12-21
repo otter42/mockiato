@@ -104,6 +104,7 @@ fact.factory('statusCodesFactory', ['$http', function($http) {
     };
 }]);
 
+//Below function is complex one. Any change will break Duplicate Req check. - Pradeep
 fact.factory('helperFactory', [function () {
     return {
         isDuplicateReq: function (servicevo) {
@@ -111,8 +112,16 @@ fact.factory('helperFactory', [function () {
             LOOP1:
             for (var i = 0; i < servicevo.rawpairs.length - 1; i++) {
                 var rawPair1 = servicevo.rawpairs[i];
+                if (!rawPair1.hasOwnProperty('requestpayload') || (rawPair1.hasOwnProperty('requestpayload') && 
+                                    rawPair1['requestpayload'] == '')) {
+                    rawPair1['requestpayload'] = '';
+                }
                 for (var j = i + 1; j < servicevo.rawpairs.length; j++) {
                     var rawPair2 = servicevo.rawpairs[j];
+                    if(!rawPair2.hasOwnProperty('requestpayload') || (rawPair2.hasOwnProperty('requestpayload') && 
+                                    rawPair2['requestpayload'] == '')){
+                        rawPair2['requestpayload']='';
+                    }
                     var isAnyReqPairDuplicate = true;
                     LOOP2:
                     for (var ky in rawPair1) {
@@ -129,12 +138,12 @@ fact.factory('helperFactory', [function () {
                         for (var ki in rawPair2) {
                             var key2, value2;
                             if (rawPair2.hasOwnProperty(ki)) {
-                                var filterVal = rawPair2[ki];
+                                var filterVal2 = rawPair2[ki];
                                 if (['queriesArr', 'reqHeadersArr'].includes(ki)) {
-                                    filterVal = filterVal.filter(o => o.k != undefined);
+                                    filterVal2 = filterVal2.filter(o => o.k != undefined);
                                 }
                                 key2 = ki;
-                                value2 = filterVal;
+                                value2 = filterVal2;
                             }
                             if (key1 == 'id' || key1 == 'resHeadersArr' || key1 == '$$hashKey' || key1 == 'responsepayload' ||
                                 key1 == 'resStatus' || key1 == 'queries' || key1 == 'resHeaders' || key1 == 'reqHeaders' ||
